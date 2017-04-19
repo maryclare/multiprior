@@ -31,7 +31,7 @@ sample.uv <- function(old.v, sigma.sq.z,
   return(cbind(u, v))
 
 }
-
+#' @export
 mp.mcmc <- function(X, y, sigma.sq.z,
                       Sigma.u.inv = diag(ncol(X)), Sigma.v.inv = diag(ncol(X)), num.samp = 10000) {
 
@@ -67,7 +67,7 @@ pv.bxy <- function(v, beta, sigma.sq.z = 1, Sigma.u = diag(length(beta)),
     return(exp(log.lik))
   }
 }
-
+#' @export
 mp.em <- function(Q, l, sigma.sq.z = 1,
                     Sigma.u.inv = diag(ncol(Q)), Sigma.v.inv = diag(ncol(Q)),
                     tol = 10^(-7),
