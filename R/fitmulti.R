@@ -64,7 +64,7 @@ sample.uv <- function(old.v, sigma.sq.z,
 #' @export
 mp.mcmc <- function(X, y, sigma.sq.z,
                       Sigma.u.inv = NULL, Sigma.v.inv = NULL, num.samp = 10000,
-                    str = "uns") {
+                    str = "uns", burn.in = 500) {
 
   p <- ncol(X)
 
@@ -76,9 +76,9 @@ mp.mcmc <- function(X, y, sigma.sq.z,
   old.v <- sqrt(abs(ridge.est))
   old.u <- sign(ridge.est)*sqrt(abs(ridge.est))
 
-  samples.beta <- array(dim = c(num.samp + 1, p))
-  samples.Sigma <- array(dim = c(num.samp + 1, p^2))
-  samples.sigma.sq.z <- array(dim = c(num.samp + 1, 1))
+  samples.beta <- array(dim = c(num.samp + burn.in, p))
+  samples.Sigma <- array(dim = c(num.samp + burn.in, p^2))
+  samples.sigma.sq.z <- array(dim = c(num.samp + burn.in, 1))
 
   if (!is.null(Sigma.u.inv)) {
     S.u.i <- Sigma.u.inv
@@ -92,7 +92,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
     s.s.z <- 1
   }
 
-  for (i in 1:(num.samp + 1)) {
+  for (i in 1:(num.samp + burn.in)) {
     if (is.null(Sigma.u.inv)) {
       S.u.i <- sample.Sigma.inv(old = old.u, sigma.sq.z = s.s.z, str = str)
     }
@@ -113,8 +113,8 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
   }
 
-  return(list("beta" = samples.beta[-1, ],
-              "Sigma" = samples.Sigma[-1, ],
-              "sigma.sq.z" = samples.sigma.sq.z[-1]))
+  return(list("beta" = samples.beta[(burn.in + 1):(burn.in + num.samp), ],
+              "Sigma" = samples.Sigma[(burn.in + 1):(burn.in + num.samp), ],
+              "sigma.sq.z" = samples.sigma.sq.z[(burn.in + 1):(burn.in + num.samp)]))
 
 }
