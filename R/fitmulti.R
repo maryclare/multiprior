@@ -70,9 +70,11 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
   XtX <- crossprod(X)
   Xty <- crossprod(X, y)
+  e.XtX <- eigen(XtX)
 
-  eps <- -min(eigen(XtX)$values) + 1
-  ridge.est <- crossprod(solve(XtX + eps*diag(p)), Xty)
+  eps <- -min(e.XtX$values) + 1
+  D <- tcrossprod(tcrossprod(e.XtX$vectors, diag(1/(e.XtX$values + eps)), e.XtX$values))
+  ridge.est <- crossprod(D, Xty)
   old.v <- sqrt(abs(ridge.est))
   old.u <- sign(ridge.est)*sqrt(abs(ridge.est))
 
