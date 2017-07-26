@@ -35,12 +35,12 @@ sample.uv <- function(old.v, sigma.sq.z,
   # First sample new u given old v
   A.u.inv <- (XtX*(old.v%*%t(old.v)) + Sigma.u.inv)/sigma.sq.z
   A.u.inv.eig <- eigen(A.u.inv)
-  A.u <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0],
-                               diag(1/A.u.inv.eig$values[A.u.inv.eig$values > 0])),
-                    A.u.inv.eig$vectors[, A.u.inv.eig$values > 0])
-  A.u.rt <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0],
-                                  diag(1/sqrt(A.u.inv.eig$values[A.u.inv.eig$values > 0]))),
-                       A.u.inv.eig$vectors[, A.u.inv.eig$values > 0])
+  A.u <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE],
+                               diag(1/A.u.inv.eig$values[A.u.inv.eig$values > 0], nrow = sum(A.u.inv.eig$values > 0), ncol = sum(A.u.inv.eig$values > 0))),
+                    A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE])
+  A.u.rt <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE],
+                                  diag(1/sqrt(A.u.inv.eig$values[A.u.inv.eig$values > 0]), nrow = sum(A.u.inv.eig$values > 0), ncol = sum(A.u.inv.eig$values > 0))),
+                       A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE])
   b.u <- Xty*old.v/sigma.sq.z
 
   u <- crossprod(A.u, b.u) + crossprod(A.u.rt, rnorm(p))
