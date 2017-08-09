@@ -43,12 +43,12 @@ sample.rho <- function(old, sigma.sq.z, tau.sq,
 
 }
 
-sample.tau.sq.inv <- function(old, sigma.sq.z, C.inv,
+sample.tau.sq.inv <- function(old.u, old.v, sigma.sq.z, C.inv.u, C.inv.v,
                               pr.a, pr.b) {
-  p <- nrow(old)
-  ssr <- tcrossprod(crossprod(old, C.inv), t(old))/sigma.sq.z
+  p <- nrow(old.u)
+  ssr <- tcrossprod(crossprod(old.u, C.inv.u), t(old.u))/sigma.sq.z + tcrossprod(crossprod(old.v, C.inv.v), t(old.v))/sigma.sq.z
   b <- as.numeric(ssr)/2 + pr.b
-  a <- p/2 + pr.a
+  a <- 2*p/2 + pr.a
   return(rgamma(1, shape = a, rate = b))
 }
 
@@ -183,7 +183,7 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
                        sig.sq.inv.rate = 1/2,
                        tau.sq.inv.shape = 1/2,
                        tau.sq.inv.rate = 1/2,
-                       rho.a = 2, tune = 1, samp.rho = TRUE) {
+                       rho.a = 2, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
 
   p <- ncol(X)
 
@@ -211,20 +211,21 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
   for (i in 1:(num.samp + burn.in)) {
 
-    t.u.i <- sample.tau.sq.inv(old = old.u, sigma.sq.z = s.s.z, C.inv = C.inv.u,
-                               pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
-    t.v.i <- sample.tau.sq.inv(old = old.v, sigma.sq.z = s.s.z, C.inv = C.inv.v,
-                               pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+    if (print.iter) {cat("i = ", i, "\n")}
+
+    t.sq <- 1/sample.tau.sq.inv(old = old.u, old.v = old.v, sigma.sq.z = s.s.z,
+                                C.inv.u = C.inv.u, C.inv.v = C.inv.v,
+                                pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
 
     if (samp.rho) {
-      samp.rho.u <- sample.rho(old = old.u, sigma.sq.z = s.s.z, tau.sq = t.u.i,
+      samp.rho.u <- sample.rho(old = old.u, sigma.sq.z = s.s.z, tau.sq = t.sq,
                                rho.old = rho.old.u, pr = rho.a, tune = tune,
                                C.inv.old = C.inv.u)
       rho.old.u <- samp.rho.u$rho
       C.inv.u <- samp.rho.u$C.inv
       acc.u <- samp.rho.u$acc
 
-      samp.rho.v <- sample.rho(old = old.v, sigma.sq.z = s.s.z, tau.sq = t.v.i,
+      samp.rho.v <- sample.rho(old = old.v, sigma.sq.z = s.s.z, tau.sq = t.sq,
                                rho.old = rho.old.v, pr = rho.a, tune = tune,
                                C.inv.old = C.inv.v)
 
@@ -233,8 +234,8 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
       acc.v <- samp.rho.v$acc
     }
 
-    S.u.i <- C.inv.u/(t.u.i)
-    S.v.i <- C.inv.v/(t.v.i)
+    S.u.i <- C.inv.u/(t.sq)
+    S.v.i <- C.inv.v/(t.sq)
 
     s <- sample.uv(old.v, s.s.z,
                    S.u.i, S.v.i, XtX, Xty)
@@ -244,7 +245,7 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
     s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old.u, old.v = old.v,
                                   S.u.i = S.u.i, S.v.i = S.v.i,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
-    samples.vpar[i, ] <- c(s.s.z, 1/(t.u.i*t.v.i), rho.old.v*rho.old.u)
+    samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old.v*rho.old.u)
     accs[i, ] <- c(acc.u, acc.v)
 
   }
