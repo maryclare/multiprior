@@ -177,6 +177,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
 }
 
+#' @export
 mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
                        sig.sq.inv.shape = 1/2,
                        sig.sq.inv.rate = 1/2,
