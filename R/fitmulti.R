@@ -1,3 +1,57 @@
+sample.rho <- function(old, sigma.sq.z, tau.sq,
+                       rho.old, pr, tune, C.inv.old) {
+
+  p <- nrow(old)
+
+  # Draw new value of rho
+  z.old <- log(((rho.old + 1)/2)/(1 - (rho.old + 1)/2))
+  z.new <- z.old + tune*rnorm(1)
+  rho.new <- -1 + 2*(exp(z.new)/(1 + exp(z.new)))
+
+  # Compute proposal probabilities
+  pr.old <- dnorm(z.old, z.new, sd = tune, log = TRUE) - log(1 - rho.old^2)
+  pr.new <- dnorm(z.new, z.old, sd = tune, log = TRUE) - log(1 - rho.new^2)
+
+  C.inv.new <- diag(p)
+  for (i in 1:p) {
+    if (i %in% c(1, p)) {
+      C.inv.new[i, i] <- (1 - rho.new^2)^(p - 2)
+    } else {
+      C.inv.new[i, i] <- (-1)^(p - 2)*(-1 + rho.new)^(p - 2)*(rho.new + 1)^(p - 2)*(1 + rho.new^2)
+    }
+    if (i < p) {
+      C.inv.new[i, i + 1] <- -rho.new*(1 - rho.new^2)^(p - 2)
+      C.inv.new[i + 1, i] <- -rho.new*(1 - rho.new^2)^(p - 2)
+    }
+  }
+  C.inv.new <- C.inv.new/(1 - rho.new^2)^(p - 1)
+
+  # Compute likelihood
+  ll.old <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE)
+  ll.new <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE)
+
+  ratio <- min(1, exp(ll.new + pr.old - (ll.old + pr.new)))
+
+  if (!runif(1) < ratio) {
+    rho.new <- rho.old
+    C.inv.new <- C.inv.old
+  }
+
+  return(list("rho" = rho.new,
+              "C.inv" = C.inv.new,
+              "acc" = (rho.new != rho.old)))
+
+}
+
+sample.tau.sq.inv <- function(old, sigma.sq.z, C.inv,
+                              pr.a, pr.b) {
+  p <- nrow(old)
+  ssr <- tcrossprod(crossprod(old, C.inv), t(old))/sigma.sq.z
+  b <- as.numeric(ssr)/2 + pr.b
+  a <- p/2 + pr.a
+  return(rgamma(1, shape = a, rate = b))
+}
+
 sample.sigma.z.inv <- function(y, X, old.u, old.v, S.u.i, S.v.i, pr.a = 1/2, pr.b = 1/2) {
   p <- nrow(old.u)
   n <- length(y)
@@ -23,6 +77,8 @@ sample.Sigma.inv <- function(old, sigma.sq.z, pr.V.inv = diag(nrow(old)),
     return(diag(rgamma(p, shape = a, rate = b)))
   } else if (str == "con") {
     b <- sum(apply(old, 1, function(x) {sum(x^2)}))/(2*sigma.sq.z) + sum(diag(pr.V.inv))/2
+    # I'm a little worried about the code below if 'old' is a matrix wtih more than 1 column,
+    # Should check
     a <- sum(rep(ncol(old), nrow(old)))/2 + p*pr.df/2
     return(rgamma(1, shape = a, rate = b)*diag(p))
   }
@@ -74,7 +130,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
   eps <- -min(e.XtX$values) + 1
   D <- tcrossprod(tcrossprod(e.XtX$vectors, diag(1/(e.XtX$values + eps))), e.XtX$vectors)
-  ridge.est <- crossprod(D, Xty) 
+  ridge.est <- crossprod(D, Xty)
   old.v <- sqrt(abs(ridge.est))
   old.u <- sign(ridge.est)*sqrt(abs(ridge.est))
 
@@ -118,5 +174,82 @@ mp.mcmc <- function(X, y, sigma.sq.z,
   return(list("beta" = samples.beta[(burn.in + 1):(burn.in + num.samp), ],
               "Sigma" = samples.Sigma[(burn.in + 1):(burn.in + num.samp), ],
               "sigma.sq.z" = samples.sigma.sq.z[(burn.in + 1):(burn.in + num.samp)]))
+
+}
+
+mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
+                       sig.sq.inv.shape = 1/2,
+                       sig.sq.inv.rate = 1/2,
+                       tau.sq.inv.shape = 1/2,
+                       tau.sq.inv.rate = 1/2,
+                       rho.a = 2, tune = 1, samp.rho = TRUE) {
+
+  p <- ncol(X)
+
+  XtX <- crossprod(X)
+  Xty <- crossprod(X, y)
+  e.XtX <- eigen(XtX)
+
+  eps <- -min(e.XtX$values) + 1
+  D <- tcrossprod(tcrossprod(e.XtX$vectors, diag(1/(e.XtX$values + eps))), e.XtX$vectors)
+  ridge.est <- crossprod(D, Xty)
+  old.v <- sqrt(abs(ridge.est))
+  old.u <- sign(ridge.est)*sqrt(abs(ridge.est))
+
+  samples.beta <- array(dim = c(num.samp + burn.in, p))
+  samples.vpar <- array(dim = c(num.samp + burn.in, 3))
+  accs <- array(dim = c(num.samp + burn.in, 2))
+
+  s.s.z <- 1
+  rho.old.u <- 0
+  rho.old.v <- 0
+  C.inv.u <- diag(p)
+  C.inv.v <- diag(p)
+  acc.u <- 0
+  acc.v <- 0
+
+  for (i in 1:(num.samp + burn.in)) {
+
+    t.u.i <- sample.tau.sq.inv(old = old.u, sigma.sq.z = s.s.z, C.inv = C.inv.u,
+                               pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+    t.v.i <- sample.tau.sq.inv(old = old.v, sigma.sq.z = s.s.z, C.inv = C.inv.v,
+                               pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+
+    if (samp.rho) {
+      samp.rho.u <- sample.rho(old = old.u, sigma.sq.z = s.s.z, tau.sq = t.u.i,
+                               rho.old = rho.old.u, pr = rho.a, tune = tune,
+                               C.inv.old = C.inv.u)
+      rho.old.u <- samp.rho.u$rho
+      C.inv.u <- samp.rho.u$C.inv
+      acc.u <- samp.rho.u$acc
+
+      samp.rho.v <- sample.rho(old = old.v, sigma.sq.z = s.s.z, tau.sq = t.v.i,
+                               rho.old = rho.old.v, pr = rho.a, tune = tune,
+                               C.inv.old = C.inv.v)
+
+      rho.old.v <- samp.rho.v$rho
+      C.inv.v <- samp.rho.v$C.inv
+      acc.v <- samp.rho.v$acc
+    }
+
+    S.u.i <- C.inv.u/(t.u.i)
+    S.v.i <- C.inv.v/(t.v.i)
+
+    s <- sample.uv(old.v, s.s.z,
+                   S.u.i, S.v.i, XtX, Xty)
+    samples.beta[i, ] <- s[, 1]*s[, 2]
+    old.u <- s[, 1, drop = FALSE]
+    old.v <- s[, 2, drop = FALSE]
+    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old.u, old.v = old.v,
+                                  S.u.i = S.u.i, S.v.i = S.v.i,
+                                  pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
+    samples.vpar[i, ] <- c(s.s.z, 1/(t.u.i*t.v.i), rho.old.v*rho.old.u)
+    accs[i, ] <- c(acc.u, acc.v)
+
+  }
+
+  return(list("beta" = samples.beta[(burn.in + 1):(burn.in + num.samp), ],
+              "var" = samples.vpar[(burn.in + 1):(burn.in + num.samp), ],
+              "accs" = accs[(burn.in + 1):(burn.in + num.samp), ]))
 
 }
