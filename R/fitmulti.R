@@ -12,6 +12,10 @@ sample.rho <- function(old, sigma.sq.z, tau.sq,
   pr.old <- dnorm(z.old, z.new, sd = tune, log = TRUE) - log(1 - rho.old^2)
   pr.new <- dnorm(z.new, z.old, sd = tune, log = TRUE) - log(1 - rho.new^2)
 
+  # .b gives the more standard way of computing the acc. prob, same answer
+  # pr.old.b <- dnorm(z.old, z.new, sd = tune, log = TRUE)
+  # pr.new.b <- dnorm(z.new, z.old, sd = tune, log = TRUE)
+
   C.inv.new <- diag(p)
   for (i in 1:p) {
     if (i %in% c(1, p)) {
@@ -29,6 +33,10 @@ sample.rho <- function(old, sigma.sq.z, tau.sq,
   # Compute likelihood
   ll.old <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE)
   ll.new <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE)
+
+  # .b gives the more standard way of computing the acc. prob, same answer
+  # ll.old.b <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE) + log(exp(z.old)/(1 + exp(z.old))^2)
+  # ll.new.b <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE) + log(exp(z.new)/(1 + exp(z.new))^2)
 
   ratio <- min(1, exp(ll.new + pr.old - (ll.old + pr.new)))
 
