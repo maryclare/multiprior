@@ -2,3 +2,5 @@
 
 export(mp.ar.mcmc)
 export(mp.mcmc)
+export(nd.ar.mcmc)
+export(nd.mcmc)
