@@ -1,7 +1,7 @@
 sample.rho <- function(old, tau.sq,
                        rho.old, pr, tune, C.inv.old) {
 
-  p <- nrow(old)
+  p <- length(old)
 
   # Draw new value of rho
   z.old <- log(((rho.old + 1)/2)/(1 - (rho.old + 1)/2))
@@ -61,7 +61,6 @@ sample.tau.sq.inv <- function(old, C.inv,
 }
 
 sample.sigma.z.inv <- function(y, X, pr.a = 1/2 + 1, pr.b = 1/2) {
-  p <- nrow(old.u)
   n <- length(y)
   beta <- old.u*old.v
   ssr <- crossprod(y - crossprod(t(X), beta))
