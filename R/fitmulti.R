@@ -90,35 +90,32 @@ sample.Sigma.inv <- function(old, pr.V.inv = diag(nrow(old)),
   }
 }
 
+sample.beta <- function(sigma.sq.z, Sigma.inv, XtX, Xty) {
+
+  A.inv <- (XtX/sigma.sq.z + Sigma.inv)
+
+  A.inv.eig <- eigen(A.inv)
+  A <- tcrossprod(tcrossprod(A.inv.eig$vectors[, A.inv.eig$values > 0],
+                               diag(1/A.inv.eig$values[A.inv.eig$values > 0])),
+                    A.inv.eig$vectors[, A.inv.eig$values > 0])
+  A.rt <- tcrossprod(tcrossprod(A.inv.eig$vectors[, A.inv.eig$values > 0],
+                                  diag(1/sqrt(A.inv.eig$values[A.inv.eig$values > 0]))),
+                       A.inv.eig$vectors[, A.inv.eig$values > 0])
+  b <- Xty/sigma.sq.z
+
+  v <- crossprod(A, b) + crossprod(A.rt, rnorm(p))
+
+  return(v)
+
+}
+
 sample.uv <- function(old.v, sigma.sq.z,
                       Sigma.u.inv, Sigma.v.inv, XtX, Xty) {
-  p <- length(old.v)
 
-  # First sample new u given old v
-  A.u.inv <- (XtX*(old.v%*%t(old.v))/sigma.sq.z + Sigma.u.inv)
-  A.u.inv.eig <- eigen(A.u.inv)
-  A.u <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE],
-                               diag(1/A.u.inv.eig$values[A.u.inv.eig$values > 0], nrow = sum(A.u.inv.eig$values > 0), ncol = sum(A.u.inv.eig$values > 0))),
-                    A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE])
-  A.u.rt <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE],
-                                  diag(1/sqrt(A.u.inv.eig$values[A.u.inv.eig$values > 0]), nrow = sum(A.u.inv.eig$values > 0), ncol = sum(A.u.inv.eig$values > 0))),
-                       A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE])
-  b.u <- Xty*old.v/sigma.sq.z
-
-  u <- crossprod(A.u, b.u) + crossprod(A.u.rt, rnorm(p))
-
-  # Now sample new v given updated u
-  A.v.inv <- (XtX*(u%*%t(u))/sigma.sq.z + Sigma.v.inv)
-  A.v.inv.eig <- eigen(A.v.inv)
-  A.v <- tcrossprod(tcrossprod(A.v.inv.eig$vectors[, A.v.inv.eig$values > 0],
-                               diag(1/A.v.inv.eig$values[A.v.inv.eig$values > 0])),
-                    A.v.inv.eig$vectors[, A.v.inv.eig$values > 0])
-  A.v.rt <- tcrossprod(tcrossprod(A.v.inv.eig$vectors[, A.v.inv.eig$values > 0],
-                                  diag(1/sqrt(A.v.inv.eig$values[A.v.inv.eig$values > 0]))),
-                       A.v.inv.eig$vectors[, A.v.inv.eig$values > 0])
-  b.v <- Xty*u/sigma.sq.z
-
-  v <- crossprod(A.v, b.v) + crossprod(A.v.rt, rnorm(p))
+  u <- sample.beta(sigma.sq.z = sigma.sq.z, Sigma.inv = Sigma.u.inv, XtX = XtX*tcrossprod(old.v),
+                   Xty = Xty*old.v)
+  v <- sample.beta(sigma.sq.z = sigma.sq.z, Sigma.inv = Sigma.v.inv, XtX = XtX*tcrossprod(u),
+                   Xty = Xty*u)
 
   return(cbind(u, v))
 
@@ -362,10 +359,10 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
     S.i <- C.inv/(t.sq)
 
-    s <- sample.uv(old.v = rep(1, p), s.s.z,
-                   Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
-    samples.beta[i, ] <- s[, 1]
-    old <- s[, 1, drop = FALSE]
+    s <- sample.beta(sigma.sq.z = s.s.z,
+                     Sigma.inv = S.i, XtX = XtX, Xty = Xty)
+    samples.beta[i, ] <- s
+    old <- matrix(s, nrow = length(s), ncol = 1)
     s.s.z <- 1/sample.sigma.z.inv(y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
     samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old)
