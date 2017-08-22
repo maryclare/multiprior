@@ -1,4 +1,4 @@
-sample.rho <- function(old, sigma.sq.z, tau.sq,
+sample.rho <- function(old, tau.sq,
                        rho.old, pr, tune, C.inv.old) {
 
   p <- nrow(old)
@@ -31,8 +31,8 @@ sample.rho <- function(old, sigma.sq.z, tau.sq,
   C.inv.new <- C.inv.new/(1 - rho.new^2)^(p - 1)
 
   # Compute likelihood
-  ll.old <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE)
-  ll.new <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE)
+  ll.old <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE)
+  ll.new <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE)
 
   # .b gives the more standard way of computing the acc. prob, same answer
   # ll.old.b <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE) + log(exp(z.old)/(1 + exp(z.old))^2)
@@ -51,40 +51,38 @@ sample.rho <- function(old, sigma.sq.z, tau.sq,
 
 }
 
-sample.tau.sq.inv <- function(old.u, old.v, sigma.sq.z, C.inv.u, C.inv.v,
+sample.tau.sq.inv <- function(old, C.inv,
                               pr.a, pr.b) {
   p <- nrow(old.u)
-  ssr <- tcrossprod(crossprod(old.u, C.inv.u), t(old.u))/sigma.sq.z + tcrossprod(crossprod(old.v, C.inv.v), t(old.v))/sigma.sq.z
+  ssr <- tcrossprod(crossprod(old, C.inv), t(old))
   b <- as.numeric(ssr)/2 + pr.b
-  a <- 2*p/2 + pr.a
+  a <- p/2 + pr.a
   return(rgamma(1, shape = a, rate = b))
 }
 
-sample.sigma.z.inv <- function(y, X, old.u, old.v, S.u.i, S.v.i, pr.a = 1/2, pr.b = 1/2) {
+sample.sigma.z.inv <- function(y, X, pr.a = 1/2 + 1, pr.b = 1/2) {
   p <- nrow(old.u)
   n <- length(y)
   beta <- old.u*old.v
   ssr <- crossprod(y - crossprod(t(X), beta))
-  r.u <- crossprod(old.u, crossprod(S.u.i, old.u))
-  r.v <- crossprod(old.v, crossprod(S.v.i, old.v))
-  b <- as.numeric(ssr + r.u + r.v)/2 + pr.b
-  a <- n/2 + p/2 + p/2 + pr.a
+  b <- as.numeric(ssr)/2 + pr.b
+  a <- n/2 + pr.a
   return(rgamma(1, shape = a, rate = b))
 }
 
-sample.Sigma.inv <- function(old, sigma.sq.z, pr.V.inv = diag(nrow(old)),
+sample.Sigma.inv <- function(old, pr.V.inv = diag(nrow(old)),
                              pr.df = nrow(old) + 2, str) {
   p <- nrow(old)
   if (str == "uns") {
-    V.inv <- tcrossprod(old)/sigma.sq.z + pr.V.inv
+    V.inv <- tcrossprod(old) + pr.V.inv
     df <- ncol(old) + p + 2
     return(rWishart(1, df, solve(V.inv))[, , 1])
   } else if (str == "het") {
-    b <- apply(old, 1, function(x) {sum(x^2)})/(2*sigma.sq.z) + diag(pr.V.inv)/2
+    b <- apply(old, 1, function(x) {sum(x^2)})/(2) + diag(pr.V.inv)/2
     a <- rep(ncol(old), nrow(old))/2 + pr.df/2
     return(diag(rgamma(p, shape = a, rate = b)))
   } else if (str == "con") {
-    b <- sum(apply(old, 1, function(x) {sum(x^2)}))/(2*sigma.sq.z) + sum(diag(pr.V.inv))/2
+    b <- sum(apply(old, 1, function(x) {sum(x^2)}))/(2) + sum(diag(pr.V.inv))/2
     # I'm a little worried about the code below if 'old' is a matrix wtih more than 1 column,
     # Should check
     a <- sum(rep(ncol(old), nrow(old)))/2 + p*pr.df/2
@@ -97,7 +95,7 @@ sample.uv <- function(old.v, sigma.sq.z,
   p <- length(old.v)
 
   # First sample new u given old v
-  A.u.inv <- (XtX*(old.v%*%t(old.v)) + Sigma.u.inv)/sigma.sq.z
+  A.u.inv <- (XtX*(old.v%*%t(old.v))/sigma.sq.z + Sigma.u.inv)
   A.u.inv.eig <- eigen(A.u.inv)
   A.u <- tcrossprod(tcrossprod(A.u.inv.eig$vectors[, A.u.inv.eig$values > 0, drop = FALSE],
                                diag(1/A.u.inv.eig$values[A.u.inv.eig$values > 0], nrow = sum(A.u.inv.eig$values > 0), ncol = sum(A.u.inv.eig$values > 0))),
@@ -110,7 +108,7 @@ sample.uv <- function(old.v, sigma.sq.z,
   u <- crossprod(A.u, b.u) + crossprod(A.u.rt, rnorm(p))
 
   # Now sample new v given updated u
-  A.v.inv <- (XtX*(u%*%t(u)) + Sigma.v.inv)/sigma.sq.z
+  A.v.inv <- (XtX*(u%*%t(u))/sigma.sq.z + Sigma.v.inv)
   A.v.inv.eig <- eigen(A.v.inv)
   A.v <- tcrossprod(tcrossprod(A.v.inv.eig$vectors[, A.v.inv.eig$values > 0],
                                diag(1/A.v.inv.eig$values[A.v.inv.eig$values > 0])),
@@ -160,10 +158,10 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
   for (i in 1:(num.samp + burn.in)) {
     if (is.null(Sigma.u.inv)) {
-      S.u.i <- sample.Sigma.inv(old = old.u, sigma.sq.z = s.s.z, str = str)
+      S.u.i <- sample.Sigma.inv(old = old.u, str = str)
     }
     if (is.null(Sigma.v.inv)) {
-      S.v.i <- sample.Sigma.inv(old = old.v, sigma.sq.z = s.s.z, str = str)
+      S.v.i <- sample.Sigma.inv(old = old.v, str = str)
     }
     s <- sample.uv(old.v, s.s.z,
                    S.u.i, S.v.i, XtX, Xty)
@@ -172,8 +170,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
     old.u <- s[, 1, drop = FALSE]
     old.v <- s[, 2, drop = FALSE]
     if (is.null(sigma.sq.z)) {
-      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old.u, old.v = old.v,
-                                    S.u.i = S.u.i, S.v.i = S.v.i)
+      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X)
     }
     samples.sigma.sq.z[i, ] <- s.s.z
 
@@ -216,7 +213,7 @@ nd.mcmc <- function(X, y, sigma.sq.z,
 
   for (i in 1:(num.samp + burn.in)) {
     if (is.null(Sigma.inv)) {
-      S.i <- sample.Sigma.inv(old = old, sigma.sq.z = s.s.z, str = str)
+      S.i <- sample.Sigma.inv(old = old, str = str)
     }
     s <- sample.uv(old = rep(1, p), s.s.z,
                    Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
@@ -224,8 +221,7 @@ nd.mcmc <- function(X, y, sigma.sq.z,
     samples.Sigma[i, ] <- as.vector(solve(S.i))
     old <- s[, 1, drop = FALSE]
     if (is.null(sigma.sq.z)) {
-      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old, old.v = rep(0, p),
-                                    S.u.i = S.i, S.v.i = diag(p))
+      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X)
     }
     samples.sigma.sq.z[i, ] <- s.s.z
 
@@ -273,19 +269,22 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
     if (print.iter) {cat("i = ", i, "\n")}
 
-    t.sq <- 1/sample.tau.sq.inv(old = old.u, old.v = old.v, sigma.sq.z = s.s.z,
-                                C.inv.u = C.inv.u, C.inv.v = C.inv.v,
+    t.sq.u <- 1/sample.tau.sq.inv(old = old.u,
+                                C.inv = C.inv.u,
                                 pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+    t.sq.v <- 1/sample.tau.sq.inv(old = old.v,
+                                  C.inv = C.inv.v,
+                                  pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
 
     if (samp.rho) {
-      samp.rho.u <- sample.rho(old = old.u, sigma.sq.z = s.s.z, tau.sq = t.sq,
+      samp.rho.u <- sample.rho(old = old.u, tau.sq = t.sq.u,
                                rho.old = rho.old.u, pr = rho.a, tune = tune,
                                C.inv.old = C.inv.u)
       rho.old.u <- samp.rho.u$rho
       C.inv.u <- samp.rho.u$C.inv
       acc.u <- samp.rho.u$acc
 
-      samp.rho.v <- sample.rho(old = old.v, sigma.sq.z = s.s.z, tau.sq = t.sq,
+      samp.rho.v <- sample.rho(old = old.v, tau.sq = t.sq.v,
                                rho.old = rho.old.v, pr = rho.a, tune = tune,
                                C.inv.old = C.inv.v)
 
@@ -294,18 +293,17 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
       acc.v <- samp.rho.v$acc
     }
 
-    S.u.i <- C.inv.u/(t.sq)
-    S.v.i <- C.inv.v/(t.sq)
+    S.u.i <- C.inv.u/(t.sq.u)
+    S.v.i <- C.inv.v/(t.sq.v)
 
     s <- sample.uv(old.v, s.s.z,
                    S.u.i, S.v.i, XtX, Xty)
     samples.beta[i, ] <- s[, 1]*s[, 2]
     old.u <- s[, 1, drop = FALSE]
     old.v <- s[, 2, drop = FALSE]
-    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old.u, old.v = old.v,
-                                  S.u.i = S.u.i, S.v.i = S.v.i,
+    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
-    samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old.v*rho.old.u)
+    samples.vpar[i, ] <- c(s.s.z, t.sq.u*t.sq.v, rho.old.v*rho.old.u)
     accs[i, ] <- c(acc.u, acc.v)
 
   }
@@ -348,12 +346,12 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
     if (print.iter) {cat("i = ", i, "\n")}
 
-    t.sq <- 1/sample.tau.sq.inv(old.u = old, old.v = rep(0, p), sigma.sq.z = s.s.z,
-                                C.inv.u = C.inv, C.inv.v = diag(p),
+    t.sq <- 1/sample.tau.sq.inv(old = old,
+                                C.inv = C.inv,
                                 pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
-    
+
     if (samp.rho) {
-      s.rho <- sample.rho(old = old, sigma.sq.z = s.s.z, tau.sq = t.sq,
+      s.rho <- sample.rho(old = old, tau.sq = t.sq,
                              rho.old = rho.old, pr = rho.a, tune = tune,
                              C.inv.old = C.inv)
       rho.old <- s.rho$rho
@@ -368,8 +366,7 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
                    Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
     samples.beta[i, ] <- s[, 1]
     old <- s[, 1, drop = FALSE]
-    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old, old.v = rep(0, p),
-                                  S.u.i = S.i, S.v.i = diag(p),
+    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
     samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old)
     accs[i, ] <- c(acc)
