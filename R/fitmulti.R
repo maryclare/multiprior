@@ -186,6 +186,61 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 }
 
 #' @export
+nd.mcmc <- function(X, y, sigma.sq.z,
+                    Sigma.u.inv = NULL, Sigma.v.inv = NULL, num.samp = 10000, str = "uns",
+                    burn.in = 500) {
+
+  p <- ncol(X)
+
+  XtX <- crossprod(X)
+  Xty <- crossprod(X, y)
+  e.XtX <- eigen(XtX)
+
+  eps <- -min(e.XtX$values) + 1
+  D <- tcrossprod(tcrossprod(e.XtX$vectors, diag(1/(e.XtX$values + eps))), e.XtX$vectors)
+  ridge.est <- crossprod(D, Xty)
+  old <- ridge.est
+
+  samples.beta <- array(dim = c(num.samp + burn.in, p))
+  samples.Sigma <- array(dim = c(num.samp + burn.in, p^2))
+  samples.sigma.sq.z <- array(dim = c(num.samp + burn.in, 1))
+
+  if (!is.null(Sigma.inv)) {
+    S.i <- solve(Sigma.inv)
+  }
+  if (!is.null(Sigma.v.inv)) {
+    S.v.i <- diag(p)
+  }
+  if (!is.null(sigma.sq.z)) {
+    s.s.z <- sigma.sq.z
+  } else {
+    s.s.z <- 1
+  }
+
+  for (i in 1:(num.samp + burn.in)) {
+    if (is.null(Sigma.inv)) {
+      S.i <- sample.Sigma.inv(old = old, sigma.sq.z = s.s.z, str = str)
+    }
+    s <- sample.uv(rep(1, p), s.s.z,
+                   S.u.i = S.i, S.v.i = diag(p), XtX, Xty)
+    samples.beta[i, ] <- s[, 1]
+    samples.Sigma[i, ] <- as.vector(solve(S.i))
+    old <- s[, 1, drop = FALSE]
+    if (is.null(sigma.sq.z)) {
+      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old, old.v = rep(0, p),
+                                    S.u.i = S.i, S.v.i = diag(p))
+    }
+    samples.sigma.sq.z[i, ] <- s.s.z
+
+  }
+
+  return(list("beta" = samples.beta[(burn.in + 1):(burn.in + num.samp), ],
+              "Sigma" = samples.Sigma[(burn.in + 1):(burn.in + num.samp), ],
+              "sigma.sq.z" = samples.sigma.sq.z[(burn.in + 1):(burn.in + num.samp)]))
+
+}
+
+#' @export
 mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
                        sig.sq.inv.shape = 1/2,
                        sig.sq.inv.rate = 1/2,
@@ -263,3 +318,70 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
               "accs" = accs[(burn.in + 1):(burn.in + num.samp), ]))
 
 }
+
+#' @export
+nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
+                       sig.sq.inv.shape = 1/2,
+                       sig.sq.inv.rate = 1/2,
+                       tau.sq.inv.shape = 1/2,
+                       tau.sq.inv.rate = 1/2,
+                       rho.a = 2, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
+
+  p <- ncol(X)
+
+  XtX <- crossprod(X)
+  Xty <- crossprod(X, y)
+  e.XtX <- eigen(XtX)
+
+  eps <- -min(e.XtX$values) + 1
+  D <- tcrossprod(tcrossprod(e.XtX$vectors, diag(1/(e.XtX$values + eps))), e.XtX$vectors)
+  ridge.est <- crossprod(D, Xty)
+  old <- ridge.est
+
+  samples.beta <- array(dim = c(num.samp + burn.in, p))
+  samples.vpar <- array(dim = c(num.samp + burn.in, 3))
+  accs <- array(dim = c(num.samp + burn.in, 1))
+
+  s.s.z <- 1
+  rho.old <- 0
+  C.inv <- diag(p)
+  acc <- 0
+
+  for (i in 1:(num.samp + burn.in)) {
+
+    if (print.iter) {cat("i = ", i, "\n")}
+
+    t.sq <- 1/sample.tau.sq.inv(old.u = old, old.v = rep(0, p), sigma.sq.z = s.s.z,
+                                C.inv.u = C.inv, C.inv.v = diag(p),
+                                pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+
+    if (samp.rho) {
+      samp.rho <- sample.rho(old = old, sigma.sq.z = s.s.z, tau.sq = t.sq,
+                             rho.old = rho.old, pr = rho.a, tune = tune,
+                             C.inv.old = C.inv)
+      rho.old <- samp.rho$rho
+      C.inv <- samp.rho$C.inv
+      acc <- samp.rho$acc
+
+    }
+
+    S.i <- C.inv/(t.sq)
+
+    s <- sample.uv(old.v = rep(1, p), s.s.z,
+                   S.u.i = S.i, S.v.i = diag(p), XtX, Xty)
+    samples.beta[i, ] <- s[, 1]
+    old <- s[, 1, drop = FALSE]
+    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old, old.v = rep(0, p),
+                                  S.u.i = S.i, S.v.i = diag(p),
+                                  pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
+    samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old)
+    accs[i, ] <- c(acc)
+
+  }
+
+  return(list("beta" = samples.beta[(burn.in + 1):(burn.in + num.samp), ],
+              "var" = samples.vpar[(burn.in + 1):(burn.in + num.samp), ],
+              "accs" = accs[(burn.in + 1):(burn.in + num.samp), ]))
+
+}
+
