@@ -208,9 +208,6 @@ nd.mcmc <- function(X, y, sigma.sq.z,
   if (!is.null(Sigma.inv)) {
     S.i <- solve(Sigma.inv)
   }
-  if (!is.null(Sigma.v.inv)) {
-    S.v.i <- diag(p)
-  }
   if (!is.null(sigma.sq.z)) {
     s.s.z <- sigma.sq.z
   } else {
@@ -221,8 +218,8 @@ nd.mcmc <- function(X, y, sigma.sq.z,
     if (is.null(Sigma.inv)) {
       S.i <- sample.Sigma.inv(old = old, sigma.sq.z = s.s.z, str = str)
     }
-    s <- sample.uv(rep(1, p), s.s.z,
-                   S.u.i = S.i, S.v.i = diag(p), XtX, Xty)
+    s <- sample.uv(old = rep(1, p), s.s.z,
+                   Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
     samples.beta[i, ] <- s[, 1]
     samples.Sigma[i, ] <- as.vector(solve(S.i))
     old <- s[, 1, drop = FALSE]
@@ -242,11 +239,11 @@ nd.mcmc <- function(X, y, sigma.sq.z,
 
 #' @export
 mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
-                       sig.sq.inv.shape = 1/2,
-                       sig.sq.inv.rate = 1/2,
-                       tau.sq.inv.shape = 1/2,
-                       tau.sq.inv.rate = 1/2,
-                       rho.a = 2, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
+                       sig.sq.inv.shape = 1/2 + 1,
+                       sig.sq.inv.rate = 1/2 + 1,
+                       tau.sq.inv.shape = 1/2 + 1,
+                       tau.sq.inv.rate = 1/2 + 1,
+                       rho.a = 1, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
 
   p <- ncol(X)
 
@@ -321,11 +318,11 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
 #' @export
 nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
-                       sig.sq.inv.shape = 1/2,
-                       sig.sq.inv.rate = 1/2,
-                       tau.sq.inv.shape = 1/2,
-                       tau.sq.inv.rate = 1/2,
-                       rho.a = 2, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
+                       sig.sq.inv.shape = 1/2 + 1,
+                       sig.sq.inv.rate = 1/2 + 1,
+                       tau.sq.inv.shape = 1/2 + 1,
+                       tau.sq.inv.rate = 1/2 + 1,
+                       rho.a = 1, tune = 1, samp.rho = TRUE, print.iter = FALSE) {
 
   p <- ncol(X)
 
@@ -354,21 +351,21 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
     t.sq <- 1/sample.tau.sq.inv(old.u = old, old.v = rep(0, p), sigma.sq.z = s.s.z,
                                 C.inv.u = C.inv, C.inv.v = diag(p),
                                 pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
-
+    
     if (samp.rho) {
-      samp.rho <- sample.rho(old = old, sigma.sq.z = s.s.z, tau.sq = t.sq,
+      s.rho <- sample.rho(old = old, sigma.sq.z = s.s.z, tau.sq = t.sq,
                              rho.old = rho.old, pr = rho.a, tune = tune,
                              C.inv.old = C.inv)
-      rho.old <- samp.rho$rho
-      C.inv <- samp.rho$C.inv
-      acc <- samp.rho$acc
+      rho.old <- s.rho$rho
+      C.inv <- s.rho$C.inv
+      acc <- s.rho$acc
 
     }
 
     S.i <- C.inv/(t.sq)
 
     s <- sample.uv(old.v = rep(1, p), s.s.z,
-                   S.u.i = S.i, S.v.i = diag(p), XtX, Xty)
+                   Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
     samples.beta[i, ] <- s[, 1]
     old <- s[, 1, drop = FALSE]
     s.s.z <- 1/sample.sigma.z.inv(y = y, X = X, old.u = old, old.v = rep(0, p),
