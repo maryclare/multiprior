@@ -53,7 +53,7 @@ sample.rho <- function(old, tau.sq,
 
 sample.tau.sq.inv <- function(old, C.inv,
                               pr.a, pr.b) {
-  p <- nrow(old.u)
+  p <- length(old)
   ssr <- tcrossprod(crossprod(old, C.inv), t(old))
   b <- as.numeric(ssr)/2 + pr.b
   a <- p/2 + pr.a
