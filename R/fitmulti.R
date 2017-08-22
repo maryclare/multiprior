@@ -60,9 +60,8 @@ sample.tau.sq.inv <- function(old, C.inv,
   return(rgamma(1, shape = a, rate = b))
 }
 
-sample.sigma.z.inv <- function(y, X, pr.a = 1/2 + 1, pr.b = 1/2) {
+sample.sigma.z.inv <- function(beta, y, X, pr.a = 1/2 + 1, pr.b = 1/2) {
   n <- length(y)
-  beta <- old.u*old.v
   ssr <- crossprod(y - crossprod(t(X), beta))
   b <- as.numeric(ssr)/2 + pr.b
   a <- n/2 + pr.a
@@ -166,7 +165,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
     old.u <- s[, 1, drop = FALSE]
     old.v <- s[, 2, drop = FALSE]
     if (is.null(sigma.sq.z)) {
-      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X)
+      s.s.z <- 1/sample.sigma.z.inv(beta = samples.beta[i, ], y = y, X = X)
     }
     samples.sigma.sq.z[i, ] <- s.s.z
 
@@ -217,7 +216,7 @@ nd.mcmc <- function(X, y, sigma.sq.z,
     samples.Sigma[i, ] <- as.vector(solve(S.i))
     old <- s[, 1, drop = FALSE]
     if (is.null(sigma.sq.z)) {
-      s.s.z <- 1/sample.sigma.z.inv(y = y, X = X)
+      s.s.z <- 1/sample.sigma.z.inv(beta = samples.beta[i, ], y = y, X = X)
     }
     samples.sigma.sq.z[i, ] <- s.s.z
 
@@ -297,7 +296,7 @@ mp.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
     samples.beta[i, ] <- s[, 1]*s[, 2]
     old.u <- s[, 1, drop = FALSE]
     old.v <- s[, 2, drop = FALSE]
-    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X,
+    s.s.z <- 1/sample.sigma.z.inv(beta = samples.beta[i, ], y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
     samples.vpar[i, ] <- c(s.s.z, t.sq.u*t.sq.v, rho.old.v*rho.old.u)
     accs[i, ] <- c(acc.u, acc.v)
@@ -362,7 +361,7 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
                      Sigma.inv = S.i, XtX = XtX, Xty = Xty)
     samples.beta[i, ] <- s
     old <- matrix(s, nrow = length(s), ncol = 1)
-    s.s.z <- 1/sample.sigma.z.inv(y = y, X = X,
+    s.s.z <- 1/sample.sigma.z.inv(beta = samples.beta[i, ], y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
     samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old)
     accs[i, ] <- c(acc)
