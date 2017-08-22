@@ -187,7 +187,7 @@ mp.mcmc <- function(X, y, sigma.sq.z,
 
 #' @export
 nd.mcmc <- function(X, y, sigma.sq.z,
-                    Sigma.u.inv = NULL, Sigma.v.inv = NULL, num.samp = 10000, str = "uns",
+                    Sigma.inv = NULL, num.samp = 10000, str = "uns",
                     burn.in = 500) {
 
   p <- ncol(X)
