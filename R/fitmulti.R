@@ -420,10 +420,10 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
     if (print.iter) {cat("i = ", i, "\n")}
 
     t.sq.u <- 1/sample.tau.sq.inv(old = old,
-                                  C.inv = t.sq.v*C.inv.u*C.inv.v,
+                                  C.inv = C.inv.both/t.sq.v,
                                   pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
     t.sq.v <- 1/sample.tau.sq.inv(old = old,
-                                  C.inv = t.sq.u*C.inv.u*C.inv.v,
+                                  C.inv = C.inv.both/t.sq.u,
                                   pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
 
     if (samp.rho) {
