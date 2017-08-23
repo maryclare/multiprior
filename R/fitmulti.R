@@ -1,3 +1,71 @@
+sample.rho.normal <- function(old, tau.sq, rho.other,
+                              rho.old, pr, tune) {
+
+  p <- length(old)
+
+  # Draw new value of rho
+  z.old <- log(((rho.old + 1)/2)/(1 - (rho.old + 1)/2))
+  z.new <- z.old + tune*rnorm(1)
+  rho.new <- -1 + 2*(exp(z.new)/(1 + exp(z.new)))
+
+  # Compute proposal probabilities
+  pr.old <- dnorm(z.old, z.new, sd = tune, log = TRUE) - log(1 - rho.old^2)
+  pr.new <- dnorm(z.new, z.old, sd = tune, log = TRUE) - log(1 - rho.new^2)
+
+  # .b gives the more standard way of computing the acc. prob, same answer
+  # pr.old.b <- dnorm(z.old, z.new, sd = tune, log = TRUE)
+  # pr.new.b <- dnorm(z.new, z.old, sd = tune, log = TRUE)
+
+  C.inv.new <- diag(p)
+  C.inv.both.new <- diag(p)
+  C.inv.both.old <- diagp(p)
+  for (i in 1:p) {
+    if (i %in% c(1, p)) {
+      C.inv.new[i, i] <- (1 - rho.new^2)^(p - 2)
+      C.inv.both.new[i, i] <- (1 - (rho.other*rho.new)^2)^(p - 2)
+      C.inv.both.old[i, i] <- (1 - (rho.other*rho.old)^2)^(p - 2)
+    } else {
+      C.inv.new[i, i] <- (-1)^(p - 2)*(-1 + rho.new)^(p - 2)*(rho.new + 1)^(p - 2)*(1 + rho.new^2)
+      C.inv.both.new[i, i] <- (-1)^(p - 2)*(-1 + rho.other*rho.new)^(p - 2)*(rho.new*rho.other + 1)^(p - 2)*(1 + (rho.other*rho.new)^2)
+      C.inv.both.old[i, i] <- (-1)^(p - 2)*(-1 + rho.other*rho.old)^(p - 2)*(rho.old*rho.other + 1)^(p - 2)*(1 + (rho.other*rho.old)^2)
+
+    }
+    if (i < p) {
+      C.inv.new[i, i + 1] <- -rho.new*(1 - rho.new^2)^(p - 2)
+      C.inv.new[i + 1, i] <- -rho.new*(1 - rho.new^2)^(p - 2)
+      C.inv.both.new[i, i + 1] <- -rho.new*rho.other*(1 - (rho.new*rho.other)^2)^(p - 2)
+      C.inv.both.new[i + 1, i] <- -rho.new*rho.other*(1 - (rho.new*rho.other)^2)^(p - 2)
+      C.inv.both.old[i, i + 1] <- -rho.old*rho.other*(1 - (rho.old*rho.other)^2)^(p - 2)
+      C.inv.both.old[i + 1, i] <- -rho.old*rho.other*(1 - (rho.old*rho.other)^2)^(p - 2)
+    }
+  }
+  C.inv.new <- C.inv.new/(1 - rho.new^2)^(p - 1)
+  C.inv.both.new <- C.inv.both.new/(1 - (rho.other*rho.new)^2)^(p - 1)
+  C.inv.both.old <- C.inv.both.old/(1 - (rho.other*rho.old)^2)^(p - 1)
+
+  # Compute likelihood
+  ll.old <- -(p - 1)*log((1 - (rho.other*rho.old)^2))/2 - tcrossprod(crossprod(old, C.inv.both.old), t(old))/(2*tau.sq) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE)
+  ll.new <- -(p - 1)*log((1 - (rho.other*rho.new)^2))/2 - tcrossprod(crossprod(old, C.inv.both.new), t(old))/(2*tau.sq) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE)
+
+  # .b gives the more standard way of computing the acc. prob, same answer
+  # ll.old.b <- -(p - 1)*log((1 - rho.old^2))/2 - tcrossprod(crossprod(old, C.inv.old), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.old + 1)/2, pr, pr, log = TRUE) + log(exp(z.old)/(1 + exp(z.old))^2)
+  # ll.new.b <- -(p - 1)*log((1 - rho.new^2))/2 - tcrossprod(crossprod(old, C.inv.new), t(old))/(2*tau.sq*sigma.sq.z) + dbeta((rho.new + 1)/2, pr, pr, log = TRUE) + log(exp(z.new)/(1 + exp(z.new))^2)
+
+  ratio <- min(1, exp(ll.new + pr.old - (ll.old + pr.new)))
+
+  if (!runif(1) < ratio) {
+    rho.new <- rho.old
+    C.inv.new <- C.inv.old
+    C.inv.both.new <- C.inv.both.old
+  }
+
+  return(list("rho" = rho.new,
+              "C.inv" = C.inv.new,
+              "acc" = (rho.new != rho.old),
+              "C.inv.both" = C.inv.both.new))
+
+}
+
 sample.rho <- function(old, tau.sq,
                        rho.old, pr, tune, C.inv.old) {
 
@@ -330,41 +398,56 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
   samples.beta <- array(dim = c(num.samp + burn.in, p))
   samples.vpar <- array(dim = c(num.samp + burn.in, 3))
-  accs <- array(dim = c(num.samp + burn.in, 1))
+  accs <- array(dim = c(num.samp + burn.in, 2))
 
-  s.s.z <- 1
-  rho.old <- 0
-  C.inv <- diag(p)
-  acc <- 0
+  s.s.z <- t.sq.u <- t.sq.v <- 1
+  rho.old.u <- 0
+  rho.old.v <- 0
+  C.inv.u <- diag(p)
+  C.inv.v <- diag(p)
+  acc.u <- 0
+  acc.v <- 0
 
   for (i in 1:(num.samp + burn.in)) {
 
     if (print.iter) {cat("i = ", i, "\n")}
 
-    t.sq <- 1/sample.tau.sq.inv(old = old,
-                                C.inv = C.inv,
-                                pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+    t.sq.u <- 1/sample.tau.sq.inv(old = old,
+                                  C.inv = t.sq.v*C.inv.u*C.inv.v,
+                                  pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
+    t.sq.v <- 1/sample.tau.sq.inv(old = old,
+                                  C.inv = t.sq.u*C.inv.u*C.inv.v,
+                                  pr.a = tau.sq.inv.shape, pr.b = tau.sq.inv.rate)
 
     if (samp.rho) {
-      s.rho <- sample.rho(old = old, tau.sq = t.sq,
-                             rho.old = rho.old, pr = rho.a, tune = tune,
-                             C.inv.old = C.inv)
-      rho.old <- s.rho$rho
-      C.inv <- s.rho$C.inv
-      acc <- s.rho$acc
+      samp.rho.u <- sample.rho.normal(old = old, tau.sq = t.sq.u*t.sq.v, rho.other = rho.old.v,
+                                      rho.old = rho.old.u, pr = rho.a, tune = tune,
+                                      C.inv.old = C.inv.u)
+      rho.old.u <- samp.rho.u$rho
+      C.inv.u <- samp.rho.u$C.inv
+      acc.u <- samp.rho.u$acc
 
+      samp.rho.v <- sample.rho.normal(old = old.v, tau.sq = t.sq.v*t.sq.u, rho.other = rho.old.u,
+                                      rho.old = rho.old.v, pr = rho.a, tune = tune,
+                                      C.inv.old = C.inv.v)
+
+      rho.old.v <- samp.rho.v$rho
+      C.inv.v <- samp.rho.v$C.inv
+      acc.v <- samp.rho.v$acc
+      C.inv.both <- samp.rho.v$C.inv.both
     }
 
-    S.i <- C.inv/(t.sq)
+    S.i <- C.inv.both/(t.sq.u*t.sq.v)
 
-    s <- sample.beta(sigma.sq.z = s.s.z,
-                     Sigma.inv = S.i, XtX = XtX, Xty = Xty)
-    samples.beta[i, ] <- s
-    old <- matrix(s, nrow = length(s), ncol = 1)
+
+
+    samples.beta[i, ] <- sample.beta(sigma.sq.z = sigma.sq.z, Sigma.inv = S.i,
+                                     XtX = XtX, Xty = Xty)
+    old <- matrix(samples.beta[i, ], nrow = p, ncol = 1)
     s.s.z <- 1/sample.sigma.z.inv(beta = samples.beta[i, ], y = y, X = X,
                                   pr.a = sig.sq.inv.shape, pr.b = sig.sq.inv.rate)
-    samples.vpar[i, ] <- c(s.s.z, t.sq, rho.old)
-    accs[i, ] <- c(acc)
+    samples.vpar[i, ] <- c(s.s.z, t.sq.u*t.sq.v, rho.old.v*rho.old.u)
+    accs[i, ] <- c(acc.u, acc.v)
 
   }
 
