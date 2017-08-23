@@ -422,15 +422,13 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
 
     if (samp.rho) {
       samp.rho.u <- sample.rho.normal(old = old, tau.sq = t.sq.u*t.sq.v, rho.other = rho.old.v,
-                                      rho.old = rho.old.u, pr = rho.a, tune = tune,
-                                      C.inv.old = C.inv.u)
+                                      rho.old = rho.old.u, pr = rho.a, tune = tune)
       rho.old.u <- samp.rho.u$rho
       C.inv.u <- samp.rho.u$C.inv
       acc.u <- samp.rho.u$acc
 
       samp.rho.v <- sample.rho.normal(old = old.v, tau.sq = t.sq.v*t.sq.u, rho.other = rho.old.u,
-                                      rho.old = rho.old.v, pr = rho.a, tune = tune,
-                                      C.inv.old = C.inv.v)
+                                      rho.old = rho.old.v, pr = rho.a, tune = tune)
 
       rho.old.v <- samp.rho.v$rho
       C.inv.v <- samp.rho.v$C.inv
