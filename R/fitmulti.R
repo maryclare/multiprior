@@ -18,7 +18,7 @@ sample.rho.normal <- function(old, tau.sq, rho.other,
 
   C.inv.new <- diag(p)
   C.inv.both.new <- diag(p)
-  C.inv.both.old <- diagp(p)
+  C.inv.both.old <- diag(p)
   for (i in 1:p) {
     if (i %in% c(1, p)) {
       C.inv.new[i, i] <- (1 - rho.new^2)^(p - 2)
