@@ -405,6 +405,7 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
   rho.old.v <- 0
   C.inv.u <- diag(p)
   C.inv.v <- diag(p)
+  C.inv.both <- C.inv.u*C.inv.v
   acc.u <- 0
   acc.v <- 0
 
@@ -438,8 +439,6 @@ nd.ar.mcmc <- function(X, y, num.samp = 10000, burn.in = 500,
     }
 
     S.i <- C.inv.both/(t.sq.u*t.sq.v)
-
-
 
     samples.beta[i, ] <- sample.beta(sigma.sq.z = sigma.sq.z, Sigma.inv = S.i,
                                      XtX = XtX, Xty = Xty)
