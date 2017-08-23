@@ -17,15 +17,18 @@ sample.rho.normal <- function(old, tau.sq, rho.other,
   # pr.new.b <- dnorm(z.new, z.old, sd = tune, log = TRUE)
 
   C.inv.new <- diag(p)
+  C.inv.old <- diag(p)
   C.inv.both.new <- diag(p)
   C.inv.both.old <- diag(p)
   for (i in 1:p) {
     if (i %in% c(1, p)) {
       C.inv.new[i, i] <- (1 - rho.new^2)^(p - 2)
+      C.inv.old[i, i] <- (1 - rho.old^2)^(p - 2)
       C.inv.both.new[i, i] <- (1 - (rho.other*rho.new)^2)^(p - 2)
       C.inv.both.old[i, i] <- (1 - (rho.other*rho.old)^2)^(p - 2)
     } else {
       C.inv.new[i, i] <- (-1)^(p - 2)*(-1 + rho.new)^(p - 2)*(rho.new + 1)^(p - 2)*(1 + rho.new^2)
+      C.inv.new[i, i] <- (-1)^(p - 2)*(-1 + rho.old)^(p - 2)*(rho.old + 1)^(p - 2)*(1 + rho.old^2)
       C.inv.both.new[i, i] <- (-1)^(p - 2)*(-1 + rho.other*rho.new)^(p - 2)*(rho.new*rho.other + 1)^(p - 2)*(1 + (rho.other*rho.new)^2)
       C.inv.both.old[i, i] <- (-1)^(p - 2)*(-1 + rho.other*rho.old)^(p - 2)*(rho.old*rho.other + 1)^(p - 2)*(1 + (rho.other*rho.old)^2)
 
@@ -33,6 +36,8 @@ sample.rho.normal <- function(old, tau.sq, rho.other,
     if (i < p) {
       C.inv.new[i, i + 1] <- -rho.new*(1 - rho.new^2)^(p - 2)
       C.inv.new[i + 1, i] <- -rho.new*(1 - rho.new^2)^(p - 2)
+      C.inv.old[i, i + 1] <- -rho.old*(1 - rho.old^2)^(p - 2)
+      C.inv.old[i + 1, i] <- -rho.old*(1 - rho.old^2)^(p - 2)
       C.inv.both.new[i, i + 1] <- -rho.new*rho.other*(1 - (rho.new*rho.other)^2)^(p - 2)
       C.inv.both.new[i + 1, i] <- -rho.new*rho.other*(1 - (rho.new*rho.other)^2)^(p - 2)
       C.inv.both.old[i, i + 1] <- -rho.old*rho.other*(1 - (rho.old*rho.other)^2)^(p - 2)
@@ -40,6 +45,7 @@ sample.rho.normal <- function(old, tau.sq, rho.other,
     }
   }
   C.inv.new <- C.inv.new/(1 - rho.new^2)^(p - 1)
+  C.inv.old <- C.inv.old/(1 - rho.old^2)^(p - 1)
   C.inv.both.new <- C.inv.both.new/(1 - (rho.other*rho.new)^2)^(p - 1)
   C.inv.both.old <- C.inv.both.old/(1 - (rho.other*rho.old)^2)^(p - 1)
 
