@@ -272,7 +272,7 @@ nd.mcmc <- function(X, y, sigma.sq.z,
   samples.sigma.sq.z <- array(dim = c(num.samp + burn.in, 1))
 
   if (!is.null(Sigma.inv)) {
-    S.i <- solve(Sigma.inv)
+    S.i <- Sigma.inv
   }
   if (!is.null(sigma.sq.z)) {
     s.s.z <- sigma.sq.z
@@ -284,9 +284,10 @@ nd.mcmc <- function(X, y, sigma.sq.z,
     if (is.null(Sigma.inv)) {
       S.i <- sample.Sigma.inv(old = old, str = str)
     }
-    s <- sample.uv(old = rep(1, p), s.s.z,
-                   Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
-    samples.beta[i, ] <- s[, 1]
+    s <- sample.beta(sigma.sq.z = s.s.z, Sigma.inv = S.i, XtX = XtX, Xty = Xty)
+    # s <- sample.uv(old = rep(1, p), s.s.z,
+    #                Sigma.u.inv = S.i, Sigma.v.inv = diag(p), XtX, Xty)
+    samples.beta[i, ] <- s
     samples.Sigma[i, ] <- as.vector(solve(S.i))
     old <- s[, 1, drop = FALSE]
     if (is.null(sigma.sq.z)) {
