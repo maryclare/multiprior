@@ -147,7 +147,7 @@ sample.Sigma.inv <- function(old, pr.V.inv = diag(nrow(old)),
   p <- nrow(old)
   if (str == "uns") {
     V.inv <- tcrossprod(old) + pr.V.inv
-    df <- ncol(old) + p + 2
+    df <- ncol(old) + pr.df
     return(rWishart(1, df, solve(V.inv))[, , 1])
   } else if (str == "het") {
     b <- apply(old, 1, function(x) {sum(x^2)})/(2) + diag(pr.V.inv)/2
